@@ -506,6 +506,7 @@ optimizer = model.setup_optimizer(
 )
 
 # torch.compile removed: compilation overhead (~600s) eats into 5-min budget on RTX 4070
+model = torch.compile(model, dynamic=False)
 
 train_loader = make_dataloader(tokenizer, DEVICE_BATCH_SIZE, MAX_SEQ_LEN, "train")
 x, y, epoch = next(train_loader)  # prefetch first batch
