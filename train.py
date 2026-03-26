@@ -41,8 +41,8 @@ def norm(x):
 
 
 def has_ve(layer_idx, n_layer):
-    """Returns True if layer should have Value Embedding (alternating, last always included)."""
-    return layer_idx % 2 == (n_layer - 1) % 2
+    """Returns True if layer should have Value Embedding (every 4th, last always included)."""
+    return layer_idx % 4 == (n_layer - 1) % 4
 
 
 def apply_rotary_emb(x, cos, sin):
@@ -436,7 +436,7 @@ WINDOW_PATTERN = "L"    # sliding window pattern: L=full, S=half context
 
 # Optimization
 TOTAL_BATCH_SIZE = 2**16 # ~65K tokens per optimizer step
-EMBEDDING_LR = 1.5      # learning rate for token embeddings (Adam)
+EMBEDDING_LR = 1.2      # learning rate for token embeddings (Adam)
 UNEMBEDDING_LR = 0.002  # learning rate for lm_head (Adam)
 MATRIX_LR = 0.03        # learning rate for matrix parameters (Muon)
 SCALAR_LR = 1.0         # learning rate for per-layer scalars (Adam)
