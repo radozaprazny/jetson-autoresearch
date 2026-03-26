@@ -99,8 +99,8 @@ class CausalSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.c_fc = nn.Linear(config.n_embd, 6 * config.n_embd, bias=False)
-        self.c_proj = nn.Linear(6 * config.n_embd, config.n_embd, bias=False)
+        self.c_fc = nn.Linear(config.n_embd, 4 * config.n_embd, bias=False)
+        self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd, bias=False)
 
     def forward(self, x):
         x = self.c_fc(x)
@@ -435,7 +435,7 @@ HEAD_DIM = 128          # target head dimension for attention
 WINDOW_PATTERN = "L"    # sliding window pattern: L=full, S=half context
 
 # Optimization
-TOTAL_BATCH_SIZE = 2**16 # ~65K tokens per optimizer step
+TOTAL_BATCH_SIZE = 2**14 # ~16K tokens per optimizer step
 EMBEDDING_LR = 1.2      # learning rate for token embeddings (Adam)
 UNEMBEDDING_LR = 0.002  # learning rate for lm_head (Adam)
 MATRIX_LR = 0.03        # learning rate for matrix parameters (Muon)
