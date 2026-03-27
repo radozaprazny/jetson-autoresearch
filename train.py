@@ -83,8 +83,8 @@ class CausalSelfAttention(nn.Module):
             v = v + gate.unsqueeze(-1) * ve
 
         cos, sin = cos_sin
+        q, k = norm(q), norm(k)  # norm before RoPE
         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
-        q, k = norm(q), norm(k)
 
         # (B, T, H, D) -> (B, H, T, D) for SDPA
         q = q.transpose(1, 2)
