@@ -98,6 +98,8 @@ LOOP FOREVER:
 3. git commit
 4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
 5. Read out the results: `grep "^val_bpb:\|^peak_vram_mb:" run.log`
+   Then compute memory_gb = peak_vram_mb / 1024, rounded to 1 decimal.
+   ALWAYS write all 5 TSV columns. Never leave memory_gb blank.
 6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
 7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
 8. If val_bpb improved (lower), you "advance" the branch, keeping the git commit
@@ -108,6 +110,8 @@ The idea is that you are a completely autonomous researcher trying things out. I
 **Timeout**: Each experiment should take ~5 minutes total (+ a few seconds for startup and eval overhead). If a run exceeds 10 minutes, kill it and treat it as a failure (discard and revert).
 
 **Crashes**: If a run crashes (OOM, or a bug, or etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash" as the status in the tsv, and move on.
+
+**Plateau strategy**: If 8 or more consecutive experiments are discarded with no improvement, STOP tweaking hyperparameters and switch to architectural changes (new components, different attention, normalization changes, removing complexity). Try at least 3 architectural ideas before returning to hyperparameter tuning.
 
 **NEVER STOP**: Once the experiment loop has begun (after the initial setup), do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. You are autonomous. If you run out of ideas, think harder — read papers referenced in the code, re-read the in-scope files for new angles, try combining previous near-misses, try more radical architectural changes. The loop runs until the human interrupts you, period.
 
