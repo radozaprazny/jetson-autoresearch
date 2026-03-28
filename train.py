@@ -440,7 +440,7 @@ EMBEDDING_LR = 2.5      # learning rate for token embeddings (Adam)
 UNEMBEDDING_LR = 0.001  # learning rate for lm_head (Adam)
 MATRIX_LR = 0.02        # learning rate for matrix parameters (Muon)
 SCALAR_LR = 1.0         # learning rate for per-layer scalars (Adam)
-WEIGHT_DECAY = 0.1      # cautious weight decay for Muon
+WEIGHT_DECAY = 0.15     # cautious weight decay for Muon
 ADAM_BETAS = (0.8, 0.98) # Adam beta1, beta2
 WARMUP_RATIO = 0.1      # fraction of time budget for LR warmup
 WARMDOWN_RATIO = 0.9    # fraction of time budget for LR warmdown
@@ -530,7 +530,7 @@ def get_muon_momentum(step):
     return (1 - frac) * 0.85 + frac * 0.95
 
 def get_weight_decay(progress):
-    return WEIGHT_DECAY * (1 - progress)
+    return WEIGHT_DECAY  # constant throughout training
 
 # ---------------------------------------------------------------------------
 # Training loop
