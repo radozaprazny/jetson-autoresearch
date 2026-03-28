@@ -63,7 +63,7 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = self.n_embd // self.n_head
         assert self.n_embd % self.n_head == 0
         assert self.n_kv_head <= self.n_head and self.n_head % self.n_kv_head == 0
-        self.qk_shift_n = int(config.n_embd * KEY_SHIFT_FRAC)  # channels to shift for Q+K
+        self.key_shift_n = int(config.n_embd * KEY_SHIFT_FRAC)  # channels to shift for K
         self.c_q = nn.Linear(self.n_embd, self.n_head * self.head_dim, bias=False)
         self.c_k = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_v = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
@@ -73,16 +73,16 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x, ve, cos_sin, window_size):
         B, T, C = x.size()
-        # Token shift: shift first qk_shift_n channels of x by 1 position for Q and K
-        if self.qk_shift_n > 0:
+        q = self.c_q(x).view(B, T, self.n_head, self.head_dim)
+        # Token shift: shift first key_shift_n channels of x by 1 position for K only
+        if self.key_shift_n > 0:
             x_shifted = torch.roll(x, shifts=1, dims=1)
             x_shifted = x_shifted.clone()
             x_shifted[:, 0, :] = 0  # zero-pad first position
-            qk_in = torch.cat([x_shifted[:, :, :self.qk_shift_n], x[:, :, self.qk_shift_n:]], dim=-1)
+            k_in = torch.cat([x_shifted[:, :, :self.key_shift_n], x[:, :, self.key_shift_n:]], dim=-1)
         else:
-            qk_in = x
-        q = self.c_q(qk_in).view(B, T, self.n_head, self.head_dim)
-        k = self.c_k(qk_in).view(B, T, self.n_kv_head, self.head_dim)
+            k_in = x
+        k = self.c_k(k_in).view(B, T, self.n_kv_head, self.head_dim)
         v = self.c_v(x).view(B, T, self.n_kv_head, self.head_dim)
 
         # Value residual (ResFormer): mix in value embedding with input-dependent gate per head
@@ -450,7 +450,7 @@ UNEMBEDDING_LR = 0.0008 # learning rate for lm_head (Adam)
 MATRIX_LR = 0.02        # learning rate for matrix parameters (Muon)
 SCALAR_LR = 1.0         # learning rate for per-layer scalars (Adam)
 WEIGHT_DECAY = 0.15     # cautious weight decay for Muon
-KEY_SHIFT_FRAC = 0.25   # fraction of key/query input channels to shift by 1 token position
+KEY_SHIFT_FRAC = 0.25   # fraction of key input channels to shift by 1 token position
 ADAM_BETAS = (0.8, 0.98) # Adam beta1, beta2
 WARMUP_RATIO = 0.05     # fraction of time budget for LR warmup
 WARMDOWN_RATIO = 0.85   # fraction of time budget for LR warmdown
