@@ -1,30 +1,142 @@
-# autoresearch
+# autoresearch (RTX 4070 Laptop GPU, Windows + WSL2)
 
 ![teaser](progress.png)
 
-*One day, frontier AI research used to be done by meat computers in between eating, sleeping, having other fun, and synchronizing once in a while using sound wave interconnect in the ritual of "group meeting". That era is long gone. Research is now entirely the domain of autonomous swarms of AI agents running across compute cluster megastructures in the skies. The agents claim that we are now in the 10,205th generation of the code base, in any case no one could tell if that's right or wrong as the "code" is now a self-modifying binary that has grown beyond human comprehension. This repo is the story of how it all began. -@karpathy, March 2026*.
+Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch). Full credit to [@karpathy](https://github.com/karpathy) for the core idea: give an AI agent a small but real LLM training setup and let it experiment autonomously overnight. It modifies `train.py`, trains for 5 minutes, checks if the result improved, keeps or discards, and repeats. The metric is **val_bpb** (validation bits per byte) — lower is better.
 
-The idea: give an AI agent a small but real LLM training setup and let it experiment autonomously overnight. It modifies the code, trains for 5 minutes, checks if the result improved, keeps or discards, and repeats. You wake up in the morning to a log of experiments and (hopefully) a better model. The training code here is a simplified single-GPU implementation of [nanochat](https://github.com/karpathy/nanochat). The core idea is that you're not touching any of the Python files like you normally would as a researcher. Instead, you are programming the `program.md` Markdown files that provide context to the AI agents and set up your autonomous research org. The default `program.md` in this repo is intentionally kept as a bare bones baseline, though it's obvious how one would iterate on it over time to find the "research org code" that achieves the fastest research progress, how you'd add more agents to the mix, etc. A bit more context on this project is here in this [tweet](https://x.com/karpathy/status/2029701092347630069) and [this tweet](https://x.com/karpathy/status/2031135152349524125).
+This fork documents a run on an **ASUS ROG NUC Mini PC with RTX 4070 Laptop GPU under Windows + WSL2**. No code changes were needed — the upstream code runs out of the box under WSL2.
 
-## How it works
+## Hardware
 
-The repo is deliberately kept small and only really has three files that matter:
+ASUS ROG NUC Mini PC — NVIDIA GeForce RTX 4070 Laptop GPU, 8 GB VRAM,
+Windows 11 + WSL2 (Linux), CUDA 13.1, WDDM driver 591.74.
+SDPA (no Flash Attention 3), torch.compile.
+~1.5 GB model footprint, ~5000–6000 steps per 5-min experiment.
 
-- **`prepare.py`** — fixed constants, one-time data prep (downloads training data, trains a BPE tokenizer), and runtime utilities (dataloader, evaluation). Not modified.
-- **`train.py`** — the single file the agent edits. Contains the full GPT model, optimizer (Muon + AdamW), and training loop. Everything is fair game: architecture, hyperparameters, optimizer, batch size, etc. **This file is edited and iterated on by the agent**.
-- **`program.md`** — baseline instructions for one agent. Point your agent here and let it go. **This file is edited and iterated on by the human**.
+## Results: 2.770 → 2.495 (282 experiments, ~10% improvement)
 
-By design, training runs for a **fixed 5-minute time budget** (wall clock, excluding startup/compilation), regardless of the details of your compute. The metric is **val_bpb** (validation bits per byte) — lower is better, and vocab-size-independent so architectural changes are fairly compared.
+## Final best config (exp277, val_bpb = 2.495532)
 
-If you are new to neural networks, this ["Dummy's Guide"](https://x.com/hooeem/status/2030720614752039185) looks pretty good for a lot more context.
+```python
+DEPTH = 6
+ASPECT_RATIO = 32         # model_dim=256, 2 heads, HEAD_DIM=128
+MLP_HIDDEN = 3x
+TOTAL_BATCH_SIZE = 2**14  # 16K tokens
+DEVICE_BATCH_SIZE = 32
+WARMUP_RATIO = 0.05
+WARMDOWN_RATIO = 0.85
+WEIGHT_DECAY = 0.15       # constant (no schedule)
+EMBEDDING_LR = 2.5
+MATRIX_LR = 0.02
+UNEMBEDDING_LR = 0.0008
+ADAM_BETAS = (0.8, 0.98)
+# MUON:
+momentum = 0.95, beta2 = 0.98, ns_steps = 12
+# Architecture:
+QK-norm before RoPE
+softcap = 15
+RoPE base = 10000
+x0_lambdas init = 0.1, resid_lambdas = 1.0
+# Separate WD param groups (from Karpathy #43):
+embed_wd = 0.001, value_embeds_wd = 0.003, lm_head_wd = 0.01
+# Token shift on K only, 1/4 channels (from cerebustech-dev #108):
+token_shift_K_fraction = 0.25
+```
+
+## Progress curve (all keeps)
+
+| commit  | val_bpb  | description |
+|---------|----------|-------------|
+| 71a3972 | 2.770532 | baseline |
+| af53e60 | 2.714456 | WARMDOWN_RATIO=0.6 |
+| fc2bf03 | 2.702443 | WARMDOWN_RATIO=0.9 |
+| 4e25239 | 2.677238 | ADAM_BETAS beta2=0.98 |
+| edeb99e | 2.672176 | ADAM_BETAS beta1=0.8 |
+| 7dbd063 | 2.667557 | MUON beta2=0.98 |
+| d05981f | 2.665535 | EMBEDDING_LR=1.2 |
+| c46cc1b | 2.648800 | UNEMBEDDING_LR=0.002 |
+| 4f5a3cf | 2.641592 | WEIGHT_DECAY=0.3 |
+| 3606eda | 2.632197 | MUON ns_steps=12 |
+| 7ada9a5 | 2.604692 | model_dim=256, 2 heads (big win) |
+| aa2e675 | 2.624541 | DEPTH=6 |
+| 4220e63 | 2.573393 | TOTAL_BS=2^14 (huge win) |
+| e65a9e5 | 2.556784 | MATRIX_LR=0.02 + UE_LR=0.001 combo |
+| 5e3a948 | 2.539082 | EMBEDDING_LR=2.5 |
+| e8078a0 | 2.550433 | QK-norm before RoPE |
+| eb7e9c5 | 2.547444 | WEIGHT_DECAY=0.1 |
+| fcc9fdd | 2.533981 | MLP 3x hidden |
+| 654cbaf | 2.526795 | Constant WD=0.15 |
+| d97f41f | 2.524369 | UE_LR=0.0008 |
+| e3acf33 | 2.518763 | WARMDOWN_RATIO=0.85 |
+| 7456351 | 2.517405 | WUR=0.05 + WDR=0.85 |
+| 68accbc | 2.496191 | token shift K-only 1/4 ch (from #108) |
+| e995b07 | 2.495532 | separate WD embed/VE/lm_head (from #43) **FINAL BEST** |
+
+## Key findings vs H100 upstream (#43)
+
+| Hyperparameter | H100 optimal | RTX 4070 / WSL2 optimal |
+|---|---|---|
+| RoPE base | 200K | 10K |
+| Depth | 9 | 6 |
+| MLP size | 4x | 3x |
+| Warmdown ratio | 0.75 | 0.85 |
+| Embedding LR | ~0.9 | 2.5 |
+| Weight decay | 0.2 | 0.15 |
+| Warmup | hurts | WUR=0.05 helps |
+| TOTAL_BS | larger | 2^14 |
+
+## Confirmed universal (cross-platform)
+
+- Tied embeddings → catastrophic (2.770 → 5.78)
+- Parallel attn+MLP → worse
+- Label smoothing → catastrophic (2.517 → 2.78)
+- VE is load-bearing (+0.14 bpb penalty when removed)
+- Smaller batch → more steps → better val_bpb
+- Warmdown tuning is the biggest schedule lever
+
+## Community findings tested on this hardware
+
+7 experiments based directly on prior discussions:
+
+**From cerebustech-dev's GB10 run ([#108](https://github.com/karpathy/autoresearch/discussions/108)):**
+
+| exp | val_bpb | result | note |
+|-----|---------|--------|------|
+| exp274: token shift K-only 1/4 ch | 2.496191 | ✅ **−0.021 NEW BEST** | 1/4 better than 1/8 here |
+| exp275: token shift K-only 1/8 ch | 2.517625 | ❌ worse than 1/4 | GB10 sweet spot doesn't transfer |
+| exp276: token shift Q+K 1/4 ch | 2.562663 | ❌ K-only confirmed better | |
+| exp278: embedding noise std=0.008 | 2.530686 | ❌ +0.035 bpb | hurts on this hardware |
+| exp279: post-norm RMSNorm before c_proj | 2.544060 | ❌ +0.049 bpb | hurts on this hardware |
+
+**From Karpathy's H100 session ([#43](https://github.com/karpathy/autoresearch/discussions/43)):**
+
+| exp | val_bpb | result | note |
+|-----|---------|--------|------|
+| exp273: INIT_SCALE=0.68 | 2.560385 | ❌ +0.043 bpb | does not transfer |
+| exp277: separate WD embed/VE/lm_head | 2.495532 | ✅ **−0.001 FINAL BEST** | small but consistent |
+
+## Notable failures (specific to this hardware)
+
+- INIT_SCALE=0.68 (Karpathy #43 win on H100): hurts here
+- Post-norm before c_proj (cerebustech-dev #108 win): hurts here
+- Embedding noise std=0.008 (cerebustech-dev #108 win): hurts here
+- DEPTH=9+ (H100 optimal): undertrained even at 5K+ steps, worse
+- TOTAL_BS=2^15 or larger: noisy gradients, worse despite more data
+- SwiGLU (GB10 win): slower and worse on this GPU
+
+## Platform note: Windows + WSL2
+
+The upstream autoresearch code runs without any modifications under WSL2.
+torch.compile, CUDA kernels, and uv all work natively. The WDDM driver
+transparently exposes the RTX 4070 Laptop GPU to the Linux WSL2 environment.
+No fork or code changes needed — just clone and run.
 
 ## Quick start
 
-**Requirements:** A single NVIDIA GPU (tested on RTX 4070 Laptop GPU 8 GB, Windows + WSL2), Python 3.10+, [uv](https://docs.astral.sh/uv/).
+**Requirements:** Python 3.10+, [uv](https://docs.astral.sh/uv/), NVIDIA GPU.
 
 ```bash
-
-# 1. Install uv project manager (if you don't already have it)
+# 1. Install uv (if you don't already have it)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Install dependencies
@@ -37,55 +149,13 @@ uv run prepare.py
 uv run train.py
 ```
 
-If the above commands all work ok, your setup is working and you can go into autonomous research mode.
+Then point Claude Code or another coding agent at `program.md` and let it run the loop.
 
-## Running the agent
+## Acknowledgments
 
-Simply spin up your Claude/Codex or whatever you want in this repo (and disable all permissions), then you can prompt something like:
-
-```
-Hi have a look at program.md and let's kick off a new experiment! let's do the setup first.
-```
-
-The `program.md` file is essentially a super lightweight "skill".
-
-## Project structure
-
-```
-prepare.py      — constants, data prep + runtime utilities (do not modify)
-train.py        — model, optimizer, training loop (agent modifies this)
-program.md      — agent instructions
-pyproject.toml  — dependencies
-```
-
-## Design choices
-
-- **Single file to modify.** The agent only touches `train.py`. This keeps the scope manageable and diffs reviewable.
-- **Fixed time budget.** Training always runs for exactly 5 minutes, regardless of your specific platform. This means you can expect approx 12 experiments/hour and approx 100 experiments while you sleep. There are two upsides of this design decision. First, this makes experiments directly comparable regardless of what the agent changes (model size, batch size, architecture, etc). Second, this means that autoresearch will find the most optimal model for your platform in that time budget. The downside is that your runs (and results) become not comparable to other people running on other compute platforms.
-- **Self-contained.** No external dependencies beyond PyTorch and a few small packages. No distributed training, no complex configs. One GPU, one file, one metric.
-
-## Platform support
-
-This code currently requires that you have a single NVIDIA GPU. In principle it is quite possible to support CPU, MPS and other platforms but this would also bloat the code. I'm not 100% sure that I want to take this on personally right now. People can reference (or have their agents reference) the full/parent nanochat repository that has wider platform support and shows the various solutions (e.g. a Flash Attention 3 kernels fallback implementation, generic device support, autodetection, etc.), feel free to create forks or discussions for other platforms and I'm happy to link to them here in the README in some new notable forks section or etc.
-
-Seeing as there seems to be a lot of interest in tinkering with autoresearch on much smaller compute platforms than an H100, a few extra words. If you're going to try running autoresearch on smaller computers (Macbooks etc.), I'd recommend one of the forks below. On top of this, here are some recommendations for how to tune the defaults for much smaller models for aspiring forks:
-
-1. To get half-decent results I'd use a dataset with a lot less entropy, e.g. this [TinyStories dataset](https://huggingface.co/datasets/karpathy/tinystories-gpt4-clean). These are GPT-4 generated short stories. Because the data is a lot narrower in scope, you will see reasonable results with a lot smaller models (if you try to sample from them after training).
-2. You might experiment with decreasing `vocab_size`, e.g. from 8192 down to 4096, 2048, 1024, or even - simply byte-level tokenizer with 256 possibly bytes after utf-8 encoding.
-3. In `prepare.py`, you'll want to lower `MAX_SEQ_LEN` a lot, depending on the computer even down to 256 etc. As you lower `MAX_SEQ_LEN`, you may want to experiment with increasing `DEVICE_BATCH_SIZE` in `train.py` slightly to compensate. The number of tokens per fwd/bwd pass is the product of these two.
-4. Also in `prepare.py`, you'll want to decrease `EVAL_TOKENS` so that your validation loss is evaluated on a lot less data.
-5. In `train.py`, the primary single knob that controls model complexity is the `DEPTH` (default 8, here). A lot of variables are just functions of this, so e.g. lower it down to e.g. 4.
-6. You'll want to most likely use `WINDOW_PATTERN` of just "L", because "SSSL" uses alternating banded attention pattern that may be very inefficient for you. Try it.
-7. You'll want to lower `TOTAL_BATCH_SIZE` a lot, but keep it powers of 2, e.g. down to `2**14` (~16K) or so even, hard to tell.
-
-I think these would be the reasonable hyperparameters to play with. Ask your favorite coding agent for help and copy paste them this guide, as well as the full source code.
-
-## Notable forks
-
-- [miolini/autoresearch-macos](https://github.com/miolini/autoresearch-macos) (MacOS)
-- [trevin-creator/autoresearch-mlx](https://github.com/trevin-creator/autoresearch-mlx) (MacOS)
-- [jsegov/autoresearch-win-rtx](https://github.com/jsegov/autoresearch-win-rtx) (Windows)
-- [andyluo7/autoresearch](https://github.com/andyluo7/autoresearch) (AMD)
+- [Andrej Karpathy](https://github.com/karpathy) — [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and the original idea
+- [cerebustech-dev](https://github.com/cerebustech-dev) — GB10 Blackwell run, token shift K-only finding ([#108](https://github.com/karpathy/autoresearch/discussions/108))
+- [heidiEC](https://github.com/heidiEC) — cross-platform graph prior ([#195](https://github.com/karpathy/autoresearch/discussions/195))
 
 ## License
 
