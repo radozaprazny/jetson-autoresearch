@@ -71,13 +71,12 @@ class CausalSelfAttention(nn.Module):
         self.ve_gate_channels = 32
         self.ve_gate = nn.Linear(self.ve_gate_channels, self.n_kv_head, bias=False) if has_ve(layer_idx, config.n_layer) else None
 
-    def forward(self, x, ve, cos_sin, window_size):
+    def forward(self, x, ve, cos_sin, window_size):  # window_size unused here: SDPA always full-context (is_causal=True)
         B, T, C = x.size()
         q = self.c_q(x).view(B, T, self.n_head, self.head_dim)
         # Token shift: shift first key_shift_n channels of x by 1 position for K only
         if self.key_shift_n > 0:
-            x_shifted = torch.roll(x, shifts=1, dims=1)
-            x_shifted = x_shifted.clone()
+            x_shifted = torch.roll(x, shifts=1, dims=1)  # roll produces a new tensor
             x_shifted[:, 0, :] = 0  # zero-pad first position
             k_in = torch.cat([x_shifted[:, :, :self.key_shift_n], x[:, :, self.key_shift_n:]], dim=-1)
         else:
@@ -267,7 +266,7 @@ class GPT(nn.Module):
             group_params = [p for p in matrix_params if p.shape == shape]
             param_groups.append(dict(
                 kind='muon', params=group_params, lr=matrix_lr,
-                momentum=0.95, ns_steps=12, beta2=0.98, weight_decay=weight_decay,
+                momentum=0.95, ns_steps=5, beta2=0.98, weight_decay=weight_decay,  # ns_steps capped by len(polar_express_coeffs)=5
             ))
         optimizer = MuonAdamW(param_groups)
         for group in optimizer.param_groups:
@@ -457,7 +456,7 @@ WARMDOWN_RATIO = 0.85   # fraction of time budget for LR warmdown
 FINAL_LR_FRAC = 0.0     # final LR as fraction of initial
 
 # Model size
-DEPTH = 8               # number of transformer layers
+DEPTH = 8               # number of transformer layers (best documented: DEPTH=6, exp277, val_bpb=2.495532)
 DEVICE_BATCH_SIZE = 32  # per-device batch size (reduce if OOM)
 
 # ---------------------------------------------------------------------------
@@ -515,7 +514,8 @@ optimizer = model.setup_optimizer(
     weight_decay=WEIGHT_DECAY,
 )
 
-# torch.compile removed: compilation overhead (~600s) eats into 5-min budget on RTX 4070
+# torch.compile on model: compile overhead goes to startup_time, not training time
+# (t_start_training is set after this line, so the 5-min budget is unaffected)
 model = torch.compile(model, dynamic=False)
 
 train_loader = make_dataloader(tokenizer, DEVICE_BATCH_SIZE, MAX_SEQ_LEN, "train")
