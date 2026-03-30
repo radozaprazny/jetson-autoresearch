@@ -5,23 +5,18 @@ description = "Autonomous pretraining research swarm"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "kernels>=0.11.7",
     "matplotlib>=3.10.8",
-    "numpy>=2.2.6",
+    "numpy>=1.24,<2",
     "pandas>=2.3.3",
     "pyarrow>=21.0.0",
     "requests>=2.32.0",
     "rustbpe>=0.1.0",
     "tiktoken>=0.11.0",
-    "torch==2.9.1",
+    "torch>=2.5.0",
 ]
 
 [tool.uv.sources]
+# Jetson Orin Nano Super (aarch64, JetPack 6.1, CUDA 12.6)
 torch = [
-    { index = "pytorch-cu128" },
+    { url = "https://developer.download.nvidia.com/compute/redist/jp/v61/pytorch/torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl" },
 ]
-
-[[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
