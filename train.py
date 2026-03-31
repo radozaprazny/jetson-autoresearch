@@ -458,7 +458,7 @@ WEIGHT_DECAY = 0.1      # cautious weight decay for Muon
 KEY_SHIFT_FRAC = 0.25   # fraction of key input channels to shift by 1 token position
 ADAM_BETAS = (0.8, 0.98) # Adam beta1, beta2
 WARMUP_RATIO = 0.05     # fraction of time budget for LR warmup
-WARMDOWN_RATIO = 0.7    # fraction of time budget for LR warmdown
+WARMDOWN_RATIO = 0.6    # fraction of time budget for LR warmdown
 FINAL_LR_FRAC = 0.0     # final LR as fraction of initial
 
 # Model size
