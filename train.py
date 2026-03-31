@@ -548,7 +548,12 @@ def get_muon_momentum(step):
     return (1 - frac) * 0.85 + frac * 0.95
 
 def get_weight_decay(progress):
-    return WEIGHT_DECAY  # constant throughout training
+    # Constant during warmup/plateau, linearly decay to 0 during warmdown
+    if progress < 1.0 - WARMDOWN_RATIO:
+        return WEIGHT_DECAY
+    else:
+        decay_progress = (1.0 - progress) / WARMDOWN_RATIO
+        return WEIGHT_DECAY * decay_progress
 
 # ---------------------------------------------------------------------------
 # Training loop
@@ -647,3 +652,4 @@ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
 print(f"num_steps:        {step}")
 print(f"num_params_M:     {num_params / 1e6:.1f}")
 print(f"depth:            {DEPTH}")
+print(f"torch_seed:       42")
