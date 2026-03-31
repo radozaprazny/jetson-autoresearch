@@ -22,6 +22,10 @@ dev/
 # Results file
 results.tsv
 
+# Persistent experiment knowledge base and setup notes (session-local)
+knowledge.md
+NEW_RUN_SETUP.md
+
 # Training logs
 run.log
 *.log
