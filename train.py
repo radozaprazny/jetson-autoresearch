@@ -82,7 +82,8 @@ class CausalSelfAttention(nn.Module):
         else:
             k_in = x
         k = self.c_k(k_in).view(B, T, self.n_kv_head, self.head_dim)
-        v = self.c_v(x).view(B, T, self.n_kv_head, self.head_dim)
+        # V shift: same shifted input as K
+        v = self.c_v(k_in).view(B, T, self.n_kv_head, self.head_dim)
 
         # Value residual (ResFormer): mix in value embedding with input-dependent gate per head
         if ve is not None:
