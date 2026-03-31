@@ -98,6 +98,11 @@ class CausalSelfAttention(nn.Module):
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
+        # GQA: expand KV heads to match Q heads
+        if self.n_kv_head < self.n_head:
+            groups = self.n_head // self.n_kv_head
+            k = k.repeat_interleave(groups, dim=1)
+            v = v.repeat_interleave(groups, dim=1)
         y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
         y = y.transpose(1, 2).contiguous().view(B, T, -1)
         y = self.c_proj(y)
@@ -440,6 +445,7 @@ class MuonAdamW(torch.optim.Optimizer):
 # Model architecture
 ASPECT_RATIO = 96       # model_dim = depth * ASPECT_RATIO (→ model_dim=384, 3 heads)
 HEAD_DIM = 128          # target head dimension for attention
+N_KV_HEAD = 1           # number of KV heads (GQA: <n_head; MHA: =n_head)
 WINDOW_PATTERN = "L"    # sliding window pattern: L=full, S=half context
 
 # Optimization
@@ -479,9 +485,11 @@ def build_model_config(depth):
     base_dim = depth * ASPECT_RATIO
     model_dim = ((base_dim + HEAD_DIM - 1) // HEAD_DIM) * HEAD_DIM
     num_heads = model_dim // HEAD_DIM
+    n_kv = N_KV_HEAD if N_KV_HEAD is not None else num_heads
+    assert num_heads % n_kv == 0, f"n_head={num_heads} must be divisible by N_KV_HEAD={n_kv}"
     return GPTConfig(
         sequence_len=MAX_SEQ_LEN, vocab_size=vocab_size,
-        n_layer=depth, n_head=num_heads, n_kv_head=num_heads, n_embd=model_dim,
+        n_layer=depth, n_head=num_heads, n_kv_head=n_kv, n_embd=model_dim,
         window_pattern=WINDOW_PATTERN,
     )
 
