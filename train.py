@@ -272,7 +272,7 @@ class GPT(nn.Module):
             group_params = [p for p in matrix_params if p.shape == shape]
             param_groups.append(dict(
                 kind='muon', params=group_params, lr=matrix_lr,
-                momentum=0.95, ns_steps=5, beta2=0.98, weight_decay=weight_decay,  # ns_steps capped by len(polar_express_coeffs)=5
+                momentum=0.95, ns_steps=7, beta2=0.98, weight_decay=weight_decay,  # ns_steps capped by len(polar_express_coeffs)=7
             ))
         optimizer = MuonAdamW(param_groups)
         for group in optimizer.param_groups:
@@ -312,6 +312,8 @@ polar_express_coeffs = [
     (3.8916678022926607, -2.772484153217685, 0.5060648178503393),
     (3.285753657755655, -2.3681294933425376, 0.46449024233003106),
     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+    (1.9507885706139776, -1.4088815961578987, 0.40298694045793534),
+    (1.7073765394553707, -1.2282340140718965, 0.3887537429440245),
 ]
 
 # torch.compile disabled: no Triton on Jetson ARM64
