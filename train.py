@@ -459,7 +459,7 @@ KEY_SHIFT_FRAC = 0.25   # fraction of key input channels to shift by 1 token pos
 ADAM_BETAS = (0.8, 0.98) # Adam beta1, beta2
 WARMUP_RATIO = 0.05     # fraction of time budget for LR warmup
 WARMDOWN_RATIO = 0.5    # fraction of time budget for LR warmdown
-FINAL_LR_FRAC = 0.0     # final LR as fraction of initial
+FINAL_LR_FRAC = 0.1     # final LR as fraction of initial
 
 # Model size
 DEPTH = 3               # number of transformer layers (best documented: DEPTH=6, exp277, val_bpb=2.495532)
