@@ -12,6 +12,10 @@ To set up a new experiment, work with the user to:
    - `README.md` — repository context.
    - `prepare.py` — fixed constants, data prep, tokenizer, dataloader, evaluation. Do not modify.
    - `train.py` — the file you modify. Model architecture, optimizer, training loop.
+   - `knowledge.md` — if it exists, read it IN FULL before any experiment.
+     It contains all lessons from previous runs: exhausted search regions,
+     known failure modes, interaction effects, and open frontiers.
+     Do NOT repeat experiments already listed in "Exhausted Search Regions".
 4. **Verify data exists**: Check that `~/.cache/autoresearch/` contains data shards and a tokenizer. If not, tell the human to run `uv run prepare.py`.
 5. **Initialize results.tsv**: Create `results.tsv` with just the header row. The baseline will be recorded after the first run.
 6. **Confirm and go**: Confirm setup looks good.
@@ -21,6 +25,12 @@ Once you get confirmation, kick off the experimentation.
 ## Experimentation
 
 Each experiment runs on a single GPU. The training script runs for a **fixed time budget of 5 minutes** (wall clock training time, excluding startup/compilation). You launch it simply as: `uv run train.py`.
+
+**Session start**: Always begin by running:
+```
+cat knowledge.md | head -60
+```
+to confirm you have the latest knowledge base, then read `results.tsv` to know current best and recent experiment history. Only then start the loop.
 
 **What you CAN do:**
 - Modify `train.py` — this is the only file you edit. Everything is fair game: model architecture, optimizer, hyperparameters, training loop, batch size, model size, etc.
@@ -95,6 +105,16 @@ LOOP FOREVER:
 
 1. Look at the git state: the current branch/commit we're on
 2. Tune `train.py` with an experimental idea by directly hacking the code.
+
+   **Before modifying train.py, write a 3-line hypothesis:**
+   - `MECHANISM`: What mathematical/algorithmic reason do I expect improvement?
+   - `RISK`: What could go wrong (OOM, divergence, interaction with current config)?
+   - `SCOPE`: Is this improvement likely 5-min-budget specific, or general?
+
+   If you cannot state the MECHANISM, the idea is exploratory — that is fine,
+   but mark it as such in the TSV description (e.g. "exploratory: ...").
+   If SCOPE = "5-min only", note it and weigh the result accordingly.
+
 3. git commit
 4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
 5. Read out the results: `grep "^val_bpb:\|^peak_vram_mb:" run.log`
@@ -104,6 +124,11 @@ LOOP FOREVER:
 7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
 8. If val_bpb improved (lower), you "advance" the branch, keeping the git commit
 9. If val_bpb is equal or worse, you git reset back to where you started
+10. **Update knowledge.md**:
+    - `KEEP`: update "Current Best Config" section and mark any relevant open frontier item as applied.
+    - `DISCARD`: add one bullet to the appropriate section (parameter response curve, anti-pattern, or interaction effect).
+    - `CRASH`: add a row to "Known Failure Modes" with root cause.
+    Never skip this step — it is the primary mechanism preventing repeated mistakes.
 
 The idea is that you are a completely autonomous researcher trying things out. If they work, keep. If they don't, discard. And you're advancing the branch so that you can iterate. If you feel like you're getting stuck in some way, you can rewind but you should probably do this very very sparingly (if ever).
 
